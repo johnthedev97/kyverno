@@ -122,18 +122,19 @@ func buildCosignOptions(ctx context.Context, opts images.Options) (*cosign.Check
 	}
 
 	if opts.Key != "" {
+		signatureAlgorithm, ok := signatureAlgorithmMap[opts.SignatureAlgorithm]
+		if !ok {
+			return nil, fmt.Errorf("invalid signature algorithm provided %s", opts.SignatureAlgorithm)
+		}
+
 		if strings.HasPrefix(strings.TrimSpace(opts.Key), "-----BEGIN PUBLIC KEY-----") {
-			if signatureAlgorithm, ok := signatureAlgorithmMap[opts.SignatureAlgorithm]; ok {
-				cosignOpts.SigVerifier, err = decodePEM([]byte(opts.Key), signatureAlgorithm)
-				if err != nil {
-					return nil, fmt.Errorf("failed to load public key from PEM: %w", err)
-				}
-			} else {
-				return nil, fmt.Errorf("invalid signature algorithm provided %s", opts.SignatureAlgorithm)
+			cosignOpts.SigVerifier, err = decodePEM([]byte(opts.Key), signatureAlgorithm)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load public key from PEM: %w", err)
 			}
 		} else {
 			// this supports Kubernetes secrets and KMS
-			cosignOpts.SigVerifier, err = sigs.PublicKeyFromKeyRef(ctx, opts.Key)
+			cosignOpts.SigVerifier, err = sigs.PublicKeyFromKeyRefWithHashAlgo(ctx, opts.Key, signatureAlgorithm)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load public key from %s: %w", opts.Key, err)
 			}
